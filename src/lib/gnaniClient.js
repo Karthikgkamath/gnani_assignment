@@ -1,7 +1,10 @@
 const fs = require('fs');
+const path = require('path');
 
 const BASE_URL = 'https://api.vachana.ai';
 const REQUEST_TIMEOUT_MS = 30_000;
+const RETRYABLE_STATUSES = new Set([429, 500, 503]);
+const MAX_ATTEMPTS = 4;
 
 function apiKey() {
   const key = process.env.GNANI_API_KEY;
@@ -9,21 +12,33 @@ function apiKey() {
   return key;
 }
 
-async function gnaniFetch(path, options = {}) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      'X-API-Key-ID': apiKey(),
-      ...options.headers,
-    },
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  if (!res.ok) {
+// The Gnani docs call 429/500/503 out explicitly as transient - retry those with backoff,
+// fail immediately on anything else (bad request, auth, etc).
+async function gnaniFetch(path, options = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        'X-API-Key-ID': apiKey(),
+        ...options.headers,
+      },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+
+    if (res.ok) return res.json();
+
     const body = await res.text().catch(() => '');
-    throw new Error(`Gnani API ${path} failed: ${res.status} ${res.statusText} ${body}`.trim());
+    lastError = new Error(`Gnani API ${path} failed: ${res.status} ${res.statusText} ${body}`.trim());
+
+    if (!RETRYABLE_STATUSES.has(res.status) || attempt === MAX_ATTEMPTS) {
+      throw lastError;
+    }
+    await sleep(2000 * 2 ** (attempt - 1)); // 2s, 4s, 8s
   }
-  return res.json();
+  throw lastError;
 }
 
 // Creates a batch job with a single audio file and returns the job id.
@@ -46,6 +61,20 @@ async function createJob(filePath, originalFilename, languageCode) {
     body: form,
   });
   return data.job_id;
+}
+
+// The synchronous /stt/v3 endpoint - capped at ~60s of audio by Gnani, but doesn't
+// require the create/start/poll dance the batch endpoint does. Used as a fallback
+// (in chunks) when the batch endpoint isn't cooperating.
+async function transcribeSync(filePath, languageCode) {
+  const fileBuffer = fs.readFileSync(filePath);
+  const form = new FormData();
+  form.append('audio_file', new Blob([fileBuffer]), path.basename(filePath));
+  form.append('language_code', languageCode);
+  form.append('format', 'transcribe');
+
+  const data = await gnaniFetch('/stt/v3', { method: 'POST', body: form });
+  return data.transcript;
 }
 
 async function startJob(jobId) {
@@ -77,4 +106,12 @@ const TERMINAL_STATUSES = new Set([
   'CANCELLED',
 ]);
 
-module.exports = { createJob, startJob, getJobStatus, getJobFiles, fetchTranscript, TERMINAL_STATUSES };
+module.exports = {
+  createJob,
+  startJob,
+  getJobStatus,
+  getJobFiles,
+  fetchTranscript,
+  transcribeSync,
+  TERMINAL_STATUSES,
+};

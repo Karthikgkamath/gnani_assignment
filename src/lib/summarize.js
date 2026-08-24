@@ -4,7 +4,7 @@ async function summarize(transcript) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
 
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const model = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
   const prompt = [
     'Summarize the following audio transcript for someone who did not listen to it.',
     'Give a short paragraph overview, then a few bullet points for key takeaways or action items if any.',

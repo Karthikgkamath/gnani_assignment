@@ -25,8 +25,9 @@
       <h2>Stack, in one line</h2>
       <p>
         Node.js + Express serving a plain HTML/vanilla-JS frontend, SQLite for data, audio files
-        stored on disk, Gnani's Batch STT API for transcription, Gemini for the summary. No frontend
-        framework, no ORM &mdash; there just isn't enough surface area here to justify either.
+        stored on disk, Gnani's STT APIs for transcription (plus <code>ffmpeg</code> for the chunking
+        fallback below), Gemini for the summary. No frontend framework, no ORM &mdash; there just isn't
+        enough surface area here to justify either.
       </p>
     </div>
 
@@ -35,7 +36,7 @@
       <ol>
         <li>Browser uploads the file via <code>XMLHttpRequest</code> (so we get real upload-progress events) to <code>POST /api/notes</code>.</li>
         <li>The server saves the file to disk, inserts a row in SQLite with <code>status = uploaded</code>, and responds immediately with the note id. The browser is redirected to the note page, which starts polling.</li>
-        <li>A background task picks the note up and calls Gnani's <strong>Batch STT</strong> API: create a job, start it, poll <code>GET /jobs/&#123;id&#125;</code> every 10s until it reaches a terminal state, then fetch the transcript.</li>
+        <li>A background task picks the note up and transcribes it &mdash; see "Long-audio handling" below for exactly how, since that ended up being more interesting than planned.</li>
         <li>Status moves to <code>transcribing</code> &rarr; <code>summarizing</code> &rarr; <code>done</code> (or <code>failed</code>) as each stage completes. The transcript is saved to SQLite as soon as it's back, before the summary step even starts.</li>
         <li>Once we have a transcript, it's sent to Gemini with a short prompt asking for a paragraph + bullet takeaways. The result is saved and status flips to <code>done</code>.</li>
       </ol>
@@ -55,12 +56,28 @@
     <div class="arch-section">
       <h2>Long-audio handling</h2>
       <p>
-        Gnani actually has two STT endpoints. The plain REST one is synchronous but capped at ~60 seconds
-        of audio &mdash; useless for a "2+ minute notes" product. The <strong>Batch</strong> endpoint is what
-        this app uses: you submit a job, start it, and poll until it's done. That's a better fit anyway,
-        since it means the browser is never sitting on an open connection waiting for a multi-minute
-        transcription to finish. The one real constraint it imposes is a 10MB-per-file cap, which the
-        upload form enforces client-side and the server enforces again (never trust the client).
+        Gnani has two STT endpoints, and this is the part of the build that didn't go as documented.
+        The plain REST endpoint is synchronous and, per the docs, capped at 60 seconds ("ideal &le;30s").
+        The <strong>Batch</strong> endpoint is meant for everything longer: submit a job, start it, poll
+        until done, fetch the transcript &mdash; a much better fit anyway, since the browser is never left
+        holding an open connection for a multi-minute transcription.
+      </p>
+      <p>
+        In testing against the real API, every batch job came back <code>START_FAILED</code> with a
+        server-side <code>ReadTimeout</code> &mdash; reproduced with five separate jobs, different file
+        sizes, and even a raw <code>curl</code> request with no app code involved, so it's a backend/account
+        issue on Gnani's side rather than a bug here. The sync endpoint, on the same key, worked instantly
+        and accurately &mdash; but its real limit turned out to be a hard 30 seconds
+        (<code>MAX_AUDIO_DURATION_EXCEEDED</code> above that), not the 60 documented.
+      </p>
+      <p>
+        So the app does both: it tries the batch flow first, exactly as documented, since that's the
+        correct design and it'll start working the moment Gnani's batch pipeline does. If that fails,
+        it automatically falls back to splitting the audio into ~25-second pieces with <code>ffmpeg</code>,
+        transcribing each through the sync endpoint, and stitching the text back together in order. This
+        is the path that's actually running right now, and it's what a 2+ minute note goes through today
+        &mdash; verified end-to-end with a 108-second clip. The 10MB-per-file cap the batch endpoint
+        documents is still enforced on upload either way, client-side and server-side.
       </p>
     </div>
 
@@ -85,7 +102,12 @@
         <code>status = failed</code> with a human-readable <code>error_message</code> instead of crashing
         the worker or leaving a note stuck silently. All outbound API calls have a timeout
         (<code>AbortSignal.timeout</code>) so a hung upstream request can't wedge the queue forever.
-        The frontend shows this inline on the note page rather than a generic "something went wrong."
+        Gnani calls that come back <code>429</code>/<code>500</code>/<code>503</code> &mdash; the docs
+        call these out as transient &mdash; are retried up to 4 times with exponential backoff before
+        the note is marked failed; this isn't theoretical, it's what actually happened testing against
+        the real API (a burst of requests tripped a rate limit on the second call of a job). Anything
+        else (bad request, auth failure, corrupt file) fails immediately since retrying won't help.
+        The frontend shows all of this inline on the note page rather than a generic "something went wrong."
       </p>
     </div>
 
@@ -93,11 +115,11 @@
       <h2>What I'd improve with more time</h2>
       <ul>
         <li>Swap the in-memory queue for something durable (BullMQ + Redis, or even just a <code>jobs</code> table with a recovery pass on boot) so a server restart doesn't strand in-flight notes.</li>
-        <li>Retry transient Gnani/Gemini failures (429s, 503s) with backoff instead of failing the note on the first hiccup &mdash; the API docs explicitly call these out as retryable.</li>
         <li>Move audio storage to S3-compatible object storage once this needs to run on more than one instance &mdash; a local disk doesn't scale horizontally.</li>
-        <li>Probe actual audio duration (ffprobe) at upload time instead of only finding out from Gnani's response, so bad files get rejected before they even hit the queue.</li>
         <li>Auth &mdash; right now every uploaded note is visible to anyone with the URL. Fine for a demo, not fine for real use.</li>
-        <li>Webhook instead of polling &mdash; Gnani supports a <code>callback_url</code> on job creation, which would remove the poll loop entirely.</li>
+        <li>Webhook instead of polling &mdash; Gnani supports a <code>callback_url</code> on batch job creation, which would remove the poll loop entirely once batch is reliable.</li>
+        <li>Overlap the chunk boundaries in the sync-endpoint fallback (e.g. re-transcribe the last second of each chunk) so a word split exactly across a cut point isn't dropped or duplicated.</li>
+        <li>Once Gnani's batch pipeline is confirmed working again, drop the fallback's chunk count down or remove it &mdash; right now every note pays the cost of a failed batch attempt before falling back.</li>
       </ul>
     </div>
   </main>
