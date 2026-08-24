@@ -149,21 +149,60 @@ progress::-moz-progress-bar { background: var(--accent); }
 
 #audio-player { width: 100%; margin: 0.75rem 0; }
 
-.steps { display: flex; gap: 0.5rem; margin: 1rem 0; flex-wrap: wrap; }
-.step {
-  flex: 1;
-  min-width: 110px;
-  text-align: center;
-  padding: 0.5rem;
-  border-radius: 6px;
-  background: #10131a;
-  border: 1px solid var(--border);
-  font-size: 0.78rem;
-  color: var(--muted);
+.stepper { display: flex; align-items: flex-start; margin: 1.5rem 0; }
+.stepper-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 0 0 auto;
 }
-.step.active { border-color: var(--accent); color: var(--accent); }
-.step.complete { border-color: var(--good); color: var(--good); }
-.step.failed { border-color: var(--bad); color: var(--bad); }
+.stepper-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 2px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.stepper-label {
+  margin-top: 0.4rem;
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.stepper-line {
+  flex: 1 1 auto;
+  height: 2px;
+  background: var(--border);
+  margin-top: 15px;
+  transition: background 0.2s ease;
+}
+
+.stepper-step.complete .stepper-circle { background: var(--good); border-color: var(--good); color: #fff; }
+.stepper-step.complete .stepper-label { color: var(--text); }
+.stepper-step.active .stepper-circle { border-color: var(--accent); color: var(--accent); }
+.stepper-step.active .stepper-label { color: var(--text); }
+.stepper-step.failed .stepper-circle { background: var(--bad); border-color: var(--bad); color: #fff; }
+.stepper-step.failed .stepper-label { color: var(--bad); }
+.stepper-line.filled { background: var(--good); }
+.stepper-line.failed-line { background: var(--bad); }
+
+.note-title-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.note-title-row h1 { margin-bottom: 0; }
+
+button.danger { background: transparent; border: 1px solid var(--bad); color: var(--bad); padding: 0.35rem 0.75rem; font-size: 0.82rem; }
+button.danger:hover { background: rgba(224, 100, 90, 0.12); }
+
+.note-list li { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.note-list li > div:first-child { flex: 1; min-width: 0; }
 
 .transcript, .summary {
   white-space: pre-wrap;

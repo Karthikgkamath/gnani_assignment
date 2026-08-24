@@ -12,10 +12,30 @@ function formatDate(iso) {
   return new Date(iso + 'Z').toLocaleString();
 }
 
+async function deleteNoteRequest(id) {
+  const res = await fetch(`/api/notes/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Delete failed');
+}
+
 // ---------- Upload / list page ----------
 
 function initUploadPage() {
   loadNoteList();
+
+  const list = document.getElementById('note-list');
+  list.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.delete-note-btn');
+    if (!btn) return;
+    if (!confirm('Delete this note? This cannot be undone.')) return;
+    btn.disabled = true;
+    try {
+      await deleteNoteRequest(btn.dataset.id);
+      loadNoteList();
+    } catch {
+      alert('Could not delete this note. Please try again.');
+      btn.disabled = false;
+    }
+  });
 
   const form = document.getElementById('upload-form');
   const submitBtn = document.getElementById('submit-btn');
@@ -98,9 +118,12 @@ async function loadNoteList() {
       .map(
         (n) => `
         <li>
-          <a href="/note.html?id=${n.id}">${escapeHtml(n.original_filename)}</a>
-          <span class="badge ${n.status}">${statusLabel(n.status)}</span>
-          <div class="note-meta">${formatDate(n.created_at)} &middot; ${n.language_code}${n.error_message ? ` &middot; ${escapeHtml(n.error_message)}` : ''}</div>
+          <div>
+            <a href="/note.html?id=${n.id}">${escapeHtml(n.original_filename)}</a>
+            <span class="badge ${n.status}">${statusLabel(n.status)}</span>
+            <div class="note-meta">${formatDate(n.created_at)} &middot; ${n.language_code}${n.error_message ? ` &middot; ${escapeHtml(n.error_message)}` : ''}</div>
+          </div>
+          <button type="button" class="danger delete-note-btn" data-id="${n.id}">Delete</button>
         </li>`
       )
       .join('');
@@ -119,6 +142,17 @@ function initNotePage() {
   }
   // Set once, outside the polling re-render, so playback doesn't reset every 3s.
   document.getElementById('audio-player').src = `/api/notes/${id}/audio`;
+
+  document.getElementById('delete-btn').addEventListener('click', async () => {
+    if (!confirm('Delete this note? This cannot be undone.')) return;
+    try {
+      await deleteNoteRequest(id);
+      window.location.href = '/';
+    } catch {
+      alert('Could not delete this note. Please try again.');
+    }
+  });
+
   pollNote(id);
 }
 
@@ -150,20 +184,31 @@ function renderNote(note) {
   document.getElementById('note-meta').textContent =
     `${formatDate(note.created_at)} · ${note.language_code}${note.duration_seconds ? ` · ${Math.round(note.duration_seconds)}s` : ''}`;
 
-  const steps = document.querySelectorAll('.step');
   const order = ['uploaded', 'transcribing', 'summarizing', 'done'];
   const currentIndex = order.indexOf(note.status);
+  const steps = document.querySelectorAll('.stepper-step');
+  const lines = document.querySelectorAll('.stepper-line');
 
-  steps.forEach((el) => {
-    const stepIndex = order.indexOf(el.dataset.step);
+  steps.forEach((el, i) => {
+    const circle = el.querySelector('.stepper-circle');
     el.classList.remove('active', 'complete', 'failed');
-    if (note.status === 'failed') {
-      if (stepIndex <= currentIndex) el.classList.add('failed');
-    } else if (stepIndex < currentIndex || note.status === 'done') {
+
+    if (note.status === 'failed' && i === currentIndex) {
+      el.classList.add('failed');
+      circle.textContent = '✕';
+    } else if (i < currentIndex || note.status === 'done') {
       el.classList.add('complete');
-    } else if (stepIndex === currentIndex) {
+      circle.textContent = '✓';
+    } else if (i === currentIndex) {
       el.classList.add('active');
+      circle.textContent = String(i + 1);
+    } else {
+      circle.textContent = String(i + 1);
     }
+  });
+
+  lines.forEach((line, i) => {
+    line.classList.toggle('filled', i < currentIndex || note.status === 'done');
   });
 
   const errorBox = document.getElementById('note-error');

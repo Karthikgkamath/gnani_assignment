@@ -16,16 +16,34 @@
 
   <main>
     <p><a href="/" class="subtle">&larr; Back to all notes</a></p>
-    <h1 id="note-title">Loading&hellip;</h1>
+    <div class="note-title-row">
+      <h1 id="note-title">Loading&hellip;</h1>
+      <button type="button" class="danger" id="delete-btn">Delete</button>
+    </div>
     <p class="subtle" id="note-meta"></p>
 
     <audio id="audio-player" controls></audio>
 
-    <div class="steps" id="steps">
-      <div class="step" data-step="uploaded">Uploaded</div>
-      <div class="step" data-step="transcribing">Transcribing</div>
-      <div class="step" data-step="summarizing">Summarizing</div>
-      <div class="step" data-step="done">Done</div>
+    <div class="stepper" id="steps">
+      <div class="stepper-step" data-step="uploaded">
+        <div class="stepper-circle">1</div>
+        <div class="stepper-label">Uploaded</div>
+      </div>
+      <div class="stepper-line"></div>
+      <div class="stepper-step" data-step="transcribing">
+        <div class="stepper-circle">2</div>
+        <div class="stepper-label">Transcribing</div>
+      </div>
+      <div class="stepper-line"></div>
+      <div class="stepper-step" data-step="summarizing">
+        <div class="stepper-circle">3</div>
+        <div class="stepper-label">Summarizing</div>
+      </div>
+      <div class="stepper-line"></div>
+      <div class="stepper-step" data-step="done">
+        <div class="stepper-circle">4</div>
+        <div class="stepper-label">Done</div>
+      </div>
     </div>
 
     <div class="error-box" id="note-error"></div>

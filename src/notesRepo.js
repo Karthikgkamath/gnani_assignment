@@ -42,4 +42,8 @@ function updateNote(id, fields) {
   );
 }
 
-module.exports = { STATUSES, createNote, getNote, listNotes, updateNote };
+function deleteNote(id) {
+  db.prepare('DELETE FROM notes WHERE id = ?').run(id);
+}
+
+module.exports = { STATUSES, createNote, getNote, listNotes, updateNote, deleteNote };
