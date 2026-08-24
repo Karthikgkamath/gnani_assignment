@@ -20,6 +20,9 @@ body {
   line-height: 1.5;
 }
 
+a { color: var(--text); }
+a:hover { color: var(--accent); }
+
 header {
   display: flex;
   align-items: center;
@@ -51,7 +54,7 @@ main {
 
 h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
 h2 { font-size: 1.1rem; margin-top: 2rem; }
-p.subtle { color: var(--muted); margin-top: 0; }
+p.subtle { color: #fff; margin-top: 0; }
 
 .panel {
   background: var(--panel);
