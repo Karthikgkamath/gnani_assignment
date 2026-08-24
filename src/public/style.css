@@ -86,19 +86,29 @@ button {
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
 
-.progress-bar {
-  height: 8px;
-  background: #10131a;
-  border-radius: 4px;
-  overflow: hidden;
-  margin-top: 0.75rem;
+.progress-wrap {
   display: none;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.85rem;
 }
-.progress-bar > div {
-  height: 100%;
-  width: 0%;
-  background: var(--accent);
-  transition: width 0.2s ease;
+
+progress {
+  flex: 1;
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+progress::-webkit-progress-bar { background: #10131a; }
+progress::-webkit-progress-value { background: var(--accent); transition: width 0.15s ease; }
+progress::-moz-progress-bar { background: var(--accent); }
+
+#progress-pct {
+  font-size: 0.8rem;
+  color: var(--muted);
+  min-width: 2.5em;
+  text-align: right;
 }
 
 .error-box {
@@ -136,6 +146,8 @@ button.secondary { background: transparent; border: 1px solid var(--border); col
 .badge.failed { background: rgba(224, 100, 90, 0.15); color: var(--bad); }
 
 .empty { color: var(--muted); font-size: 0.9rem; }
+
+#audio-player { width: 100%; margin: 0.75rem 0; }
 
 .steps { display: flex; gap: 0.5rem; margin: 1rem 0; flex-wrap: wrap; }
 .step {

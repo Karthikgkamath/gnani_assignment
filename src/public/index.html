@@ -36,7 +36,10 @@
         </select>
 
         <button type="submit" id="submit-btn">Upload & transcribe</button>
-        <div class="progress-bar" id="progress-bar"><div id="progress-fill"></div></div>
+        <div class="progress-wrap" id="progress-wrap">
+          <progress id="progress-fill" max="100" value="0"></progress>
+          <span id="progress-pct">0%</span>
+        </div>
         <div class="error-box" id="upload-error"></div>
       </form>
     </div>

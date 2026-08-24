@@ -19,9 +19,15 @@ function initUploadPage() {
 
   const form = document.getElementById('upload-form');
   const submitBtn = document.getElementById('submit-btn');
-  const progressBar = document.getElementById('progress-bar');
+  const progressWrap = document.getElementById('progress-wrap');
   const progressFill = document.getElementById('progress-fill');
+  const progressPct = document.getElementById('progress-pct');
   const errorBox = document.getElementById('upload-error');
+
+  function setProgress(pct) {
+    progressFill.value = pct;
+    progressPct.textContent = `${pct}%`;
+  }
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -36,15 +42,15 @@ function initUploadPage() {
     formData.append('language_code', languageSelect.value);
 
     submitBtn.disabled = true;
-    progressBar.style.display = 'block';
-    progressFill.style.width = '0%';
+    progressWrap.style.display = 'flex';
+    setProgress(0);
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/notes');
 
     xhr.upload.addEventListener('progress', (evt) => {
       if (evt.lengthComputable) {
-        progressFill.style.width = `${Math.round((evt.loaded / evt.total) * 100)}%`;
+        setProgress(Math.round((evt.loaded / evt.total) * 100));
       }
     });
 
@@ -54,18 +60,20 @@ function initUploadPage() {
       try { body = JSON.parse(xhr.responseText); } catch { body = null; }
 
       if (xhr.status >= 200 && xhr.status < 300 && body?.id) {
-        window.location.href = `/note.html?id=${body.id}`;
+        setProgress(100);
+        // Briefly show the completed bar instead of jumping straight to the next page.
+        setTimeout(() => { window.location.href = `/note.html?id=${body.id}`; }, 300);
         return;
       }
 
-      progressBar.style.display = 'none';
+      progressWrap.style.display = 'none';
       errorBox.textContent = body?.error || `Upload failed (HTTP ${xhr.status}). Please try again.`;
       errorBox.style.display = 'block';
     };
 
     xhr.onerror = () => {
       submitBtn.disabled = false;
-      progressBar.style.display = 'none';
+      progressWrap.style.display = 'none';
       errorBox.textContent = 'Network error during upload. Check your connection and try again.';
       errorBox.style.display = 'block';
     };
@@ -109,6 +117,8 @@ function initNotePage() {
     document.getElementById('note-title').textContent = 'Note not found';
     return;
   }
+  // Set once, outside the polling re-render, so playback doesn't reset every 3s.
+  document.getElementById('audio-player').src = `/api/notes/${id}/audio`;
   pollNote(id);
 }
 
