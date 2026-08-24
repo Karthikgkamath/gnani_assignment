@@ -1,0 +1,19 @@
+{
+  "name": "audio-notes",
+  "version": "1.0.0",
+  "description": "Upload an audio file, get a transcript (Gnani ASR) and an LLM summary (Gemini).",
+  "private": true,
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/server.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "multer": "^2.0.1"
+  }
+}

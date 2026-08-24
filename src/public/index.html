@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Audio Notes</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <a href="/">Audio Notes</a>
+    <nav>
+      <a href="/architecture.html">Architecture</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Upload an audio note</h1>
+    <p class="subtle">Get a transcript and a summary. Works best with clips of 2 minutes or more.</p>
+
+    <div class="panel">
+      <form id="upload-form">
+        <label for="audio">Audio file (wav, mp3, m4a, ogg, flac, aac, webm &mdash; max 10MB)</label>
+        <input type="file" id="audio" name="audio" accept="audio/*" required />
+
+        <label for="language">Language</label>
+        <select id="language" name="language_code">
+          <option value="en-IN">English (India)</option>
+          <option value="hi-IN">Hindi</option>
+          <option value="kn-IN">Kannada</option>
+          <option value="ta-IN">Tamil</option>
+          <option value="te-IN">Telugu</option>
+          <option value="ml-IN">Malayalam</option>
+          <option value="mr-IN">Marathi</option>
+          <option value="bn-IN">Bengali</option>
+        </select>
+
+        <button type="submit" id="submit-btn">Upload & transcribe</button>
+        <div class="progress-bar" id="progress-bar"><div id="progress-fill"></div></div>
+        <div class="error-box" id="upload-error"></div>
+      </form>
+    </div>
+
+    <h2>Past uploads</h2>
+    <ul class="note-list" id="note-list">
+      <li class="empty">Loading&hellip;</li>
+    </ul>
+  </main>
+
+  <script src="/app.js"></script>
+  <script>
+    initUploadPage();
+  </script>
+</body>
+</html>

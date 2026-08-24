@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Audio Note</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <a href="/">Audio Notes</a>
+    <nav>
+      <a href="/architecture.html">Architecture</a>
+    </nav>
+  </header>
+
+  <main>
+    <p><a href="/" class="subtle">&larr; Back to all notes</a></p>
+    <h1 id="note-title">Loading&hellip;</h1>
+    <p class="subtle" id="note-meta"></p>
+
+    <div class="steps" id="steps">
+      <div class="step" data-step="uploaded">Uploaded</div>
+      <div class="step" data-step="transcribing">Transcribing</div>
+      <div class="step" data-step="summarizing">Summarizing</div>
+      <div class="step" data-step="done">Done</div>
+    </div>
+
+    <div class="error-box" id="note-error"></div>
+
+    <div id="note-body"></div>
+  </main>
+
+  <script src="/app.js"></script>
+  <script>
+    initNotePage();
+  </script>
+</body>
+</html>

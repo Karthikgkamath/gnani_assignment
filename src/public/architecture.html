@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Architecture</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <a href="/">Audio Notes</a>
+    <nav>
+      <a href="https://github.com/Karthikgkamath/gnani_assignment" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Architecture</h1>
+    <p class="subtle">
+      How this thing is built, what runs where, and what I'd do differently with more time.
+      Source: <a href="https://github.com/Karthikgkamath/gnani_assignment" target="_blank" rel="noopener">github.com/Karthikgkamath/gnani_assignment</a>
+    </p>
+
+    <div class="arch-section">
+      <h2>Stack, in one line</h2>
+      <p>
+        Node.js + Express serving a plain HTML/vanilla-JS frontend, SQLite for data, audio files
+        stored on disk, Gnani's Batch STT API for transcription, Gemini for the summary. No frontend
+        framework, no ORM &mdash; there just isn't enough surface area here to justify either.
+      </p>
+    </div>
+
+    <div class="arch-section">
+      <h2>Upload &rarr; transcript flow</h2>
+      <ol>
+        <li>Browser uploads the file via <code>XMLHttpRequest</code> (so we get real upload-progress events) to <code>POST /api/notes</code>.</li>
+        <li>The server saves the file to disk, inserts a row in SQLite with <code>status = uploaded</code>, and responds immediately with the note id. The browser is redirected to the note page, which starts polling.</li>
+        <li>A background task picks the note up and calls Gnani's <strong>Batch STT</strong> API: create a job, start it, poll <code>GET /jobs/&#123;id&#125;</code> every 10s until it reaches a terminal state, then fetch the transcript.</li>
+        <li>Status moves to <code>transcribing</code> &rarr; <code>summarizing</code> &rarr; <code>done</code> (or <code>failed</code>) as each stage completes. The transcript is saved to SQLite as soon as it's back, before the summary step even starts.</li>
+        <li>Once we have a transcript, it's sent to Gemini with a short prompt asking for a paragraph + bullet takeaways. The result is saved and status flips to <code>done</code>.</li>
+      </ol>
+    </div>
+
+    <div class="arch-section">
+      <h2>File storage</h2>
+      <p>
+        Audio files are written straight to disk under a data directory (<code>DATA_DIR/uploads</code>),
+        named by a random UUID so we never trust the original filename for anything but display.
+        SQLite lives right next to it (<code>DATA_DIR/notes.db</code>). On Render both live on a mounted
+        persistent disk, so they survive restarts and redeploys. This is deliberately not S3/Blob storage &mdash;
+        for a single small instance, a disk is simpler and there's nothing an object store buys us yet.
+      </p>
+    </div>
+
+    <div class="arch-section">
+      <h2>Long-audio handling</h2>
+      <p>
+        Gnani actually has two STT endpoints. The plain REST one is synchronous but capped at ~60 seconds
+        of audio &mdash; useless for a "2+ minute notes" product. The <strong>Batch</strong> endpoint is what
+        this app uses: you submit a job, start it, and poll until it's done. That's a better fit anyway,
+        since it means the browser is never sitting on an open connection waiting for a multi-minute
+        transcription to finish. The one real constraint it imposes is a 10MB-per-file cap, which the
+        upload form enforces client-side and the server enforces again (never trust the client).
+      </p>
+    </div>
+
+    <div class="arch-section">
+      <h2>What runs sync vs. background</h2>
+      <ul>
+        <li><strong>Sync (inside the request):</strong> receiving the upload, validating file type/size, writing it to disk, creating the DB row.</li>
+        <li><strong>Background (after the response is sent):</strong> the whole Gnani job lifecycle (create/start/poll/fetch), and the Gemini summarization call. Both can take anywhere from a few seconds to a few minutes, so they run in an in-process queue and the note's <code>status</code> column is the source of truth the frontend polls against.</li>
+      </ul>
+      <p>
+        The queue itself is intentionally the simplest thing that works: an in-memory array processed
+        one job at a time in the same Node process that serves HTTP requests. It's not durable &mdash;
+        a restart mid-job loses that job's progress (the note just sits in <code>transcribing</code> forever,
+        which is a bug, not a feature). Fine for a demo on a single instance; not fine at real scale.
+      </p>
+    </div>
+
+    <div class="arch-section">
+      <h2>Failure handling</h2>
+      <p>
+        Every stage (upload validation, Gnani calls, Gemini call) is wrapped so a failure updates
+        <code>status = failed</code> with a human-readable <code>error_message</code> instead of crashing
+        the worker or leaving a note stuck silently. All outbound API calls have a timeout
+        (<code>AbortSignal.timeout</code>) so a hung upstream request can't wedge the queue forever.
+        The frontend shows this inline on the note page rather than a generic "something went wrong."
+      </p>
+    </div>
+
+    <div class="arch-section">
+      <h2>What I'd improve with more time</h2>
+      <ul>
+        <li>Swap the in-memory queue for something durable (BullMQ + Redis, or even just a <code>jobs</code> table with a recovery pass on boot) so a server restart doesn't strand in-flight notes.</li>
+        <li>Retry transient Gnani/Gemini failures (429s, 503s) with backoff instead of failing the note on the first hiccup &mdash; the API docs explicitly call these out as retryable.</li>
+        <li>Move audio storage to S3-compatible object storage once this needs to run on more than one instance &mdash; a local disk doesn't scale horizontally.</li>
+        <li>Probe actual audio duration (ffprobe) at upload time instead of only finding out from Gnani's response, so bad files get rejected before they even hit the queue.</li>
+        <li>Auth &mdash; right now every uploaded note is visible to anyone with the URL. Fine for a demo, not fine for real use.</li>
+        <li>Webhook instead of polling &mdash; Gnani supports a <code>callback_url</code> on job creation, which would remove the poll loop entirely.</li>
+      </ul>
+    </div>
+  </main>
+</body>
+</html>
