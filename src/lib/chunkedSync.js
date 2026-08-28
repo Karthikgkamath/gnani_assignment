@@ -18,12 +18,18 @@ const DELAY_BETWEEN_CALLS_MS = 500;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function getDurationSeconds(filePath) {
-  const { stdout } = await execFileAsync('ffprobe', [
-    '-v', 'error',
-    '-show_entries', 'format=duration',
-    '-of', 'default=noprint_wrappers=1:nokey=1',
-    filePath,
-  ]);
+  let stdout;
+  try {
+    ({ stdout } = await execFileAsync('ffprobe', [
+      '-v', 'error',
+      '-show_entries', 'format=duration',
+      '-of', 'default=noprint_wrappers=1:nokey=1',
+      filePath,
+    ]));
+  } catch (err) {
+    // ffprobe's stderr dumps the full server-side file path - not something to show a user.
+    throw new Error("This doesn't look like a valid audio file (couldn't read it).");
+  }
   const seconds = parseFloat(stdout.trim());
   return Number.isFinite(seconds) ? seconds : null;
 }
@@ -31,12 +37,16 @@ async function getDurationSeconds(filePath) {
 async function splitIntoChunks(filePath) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'audio-chunks-'));
   const pattern = path.join(dir, 'chunk_%03d.mp3');
-  await execFileAsync('ffmpeg', [
-    '-y', '-i', filePath,
-    '-ar', '16000', '-ac', '1', '-b:a', '64k',
-    '-f', 'segment', '-segment_time', String(CHUNK_SECONDS), '-reset_timestamps', '1',
-    pattern,
-  ]);
+  try {
+    await execFileAsync('ffmpeg', [
+      '-y', '-i', filePath,
+      '-ar', '16000', '-ac', '1', '-b:a', '64k',
+      '-f', 'segment', '-segment_time', String(CHUNK_SECONDS), '-reset_timestamps', '1',
+      pattern,
+    ]);
+  } catch (err) {
+    throw new Error("This doesn't look like a valid audio file (couldn't split it for transcription).");
+  }
   const files = fs
     .readdirSync(dir)
     .filter((f) => f.startsWith('chunk_'))
