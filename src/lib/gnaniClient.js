@@ -19,14 +19,25 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function gnaniFetch(path, options = {}) {
   let lastError;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    const res = await fetch(`${BASE_URL}${path}`, {
-      ...options,
-      headers: {
-        'X-API-Key-ID': apiKey(),
-        ...options.headers,
-      },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
+    let res;
+    try {
+      res = await fetch(`${BASE_URL}${path}`, {
+        ...options,
+        headers: {
+          'X-API-Key-ID': apiKey(),
+          ...options.headers,
+        },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (err) {
+      // fetch() itself throws on a timeout/network failure rather than resolving
+      // with a bad status - treat that the same as a retryable server error instead
+      // of letting it skip the retry loop entirely.
+      lastError = new Error(`Gnani API ${path} failed: ${err.message}`);
+      if (attempt === MAX_ATTEMPTS) throw lastError;
+      await sleep(2000 * 2 ** (attempt - 1));
+      continue;
+    }
 
     if (res.ok) return res.json();
 
